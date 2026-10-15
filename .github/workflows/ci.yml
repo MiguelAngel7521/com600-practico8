@@ -5,15 +5,15 @@ on:
   pull_request:
 
 jobs:
-	verificar:
-		runs-on: ubuntu-latest
-		steps:
-			- name: Traer el codigo del repositorio
-				uses: actions/checkout@v4
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Traer el codigo del repositorio
+        uses: actions/checkout@v4
 
-			- name: Comprobar que el mecanismo funciona
-				run: |
-					echo "Commit: $GITHUB_SHA"
-					echo "Rama:   $GITHUB_REF_NAME"
-					ls -la
+      - name: Comprobar que el mecanismo funciona
+        run: |
+          echo "Commit: $GITHUB_SHA"
+          echo "Rama:   $GITHUB_REF_NAME"
+          ls -la
 
