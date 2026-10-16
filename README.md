@@ -1,183 +1,103 @@
-# Práctica 8 · Parte 1 · Hasta el Laboratorio 1
+# Práctica 8 · Pipeline CI/CD con GitHub Actions
 
-Rodriguez Vela Miguel Angel · COM-600 Microservicios · 15/10/2026.
+Miguel Angel Rodriguez Vela · COM-600 Microservicios · Gestión 2/2026.
 
-Repositorio: <https://github.com/MiguelAngel7521/com600-practico8>.
+[Repositorio](https://github.com/MiguelAngel7521/com600-practico8) · [Ejecuciones](https://github.com/MiguelAngel7521/com600-practico8/actions) · [Imagen publicada](https://github.com/users/MiguelAngel7521/packages/container/package/com600-practico8).
 
-Este proyecto completa el punto de partida del **Laboratorio 0** y el primer workflow del **Laboratorio 1**. El único job de GitHub Actions es `verificar`: trae el código y muestra el commit, la rama y los archivos con `ls -la`. La automatización de pruebas y la publicación de imágenes corresponden a los laboratorios posteriores.
+Parte 1: laboratorios 0 a 7 sobre el servicio de tareas de la Práctica 7 y el Dockerfile adaptado de la Práctica 2. La Parte 2 sobre el proyecto integrador queda fuera de esta entrega.
 
-## Ver el `ls -la` en GitHub
+## Ejecutar y comprobar
 
-1. Abre [Actions](https://github.com/MiguelAngel7521/com600-practico8/actions).
-2. Abre la ejecución más reciente del workflow **CI**.
-3. En **Jobs**, pulsa **verificar**.
-4. Despliega **Comprobar que el mecanismo funciona (ls -la)**.
-5. Verás el commit, la rama, el directorio del runner y los listados de la raíz, `src/` y `tests/`.
-
-El mismo listado también aparece en el **Summary / Resumen** de esa ejecución. GitHub puede dejar contraídos los pasos que terminan bien: pulsa la flecha del paso para abrir el registro. Necesitas iniciar sesión en GitHub para acceder a los logs.
-
-## Qué se incorporó de las prácticas anteriores
-
-| Origen en tu equipo | Destino aquí | Qué se hizo |
-| --- | --- | --- |
-| `../practica7-pruebas/src/` | `src/` | Se copiaron el servicio, las funciones y los contratos JSON. |
-| `../practica7-pruebas/src/test/` | `tests/` | Se copiaron las siete suites; se ajustaron sus imports a `../src/`. |
-| `../practica7-pruebas/package.json` | `package.json` | Se conservaron scripts y dependencias, se cambió el nombre del proyecto y se completó Testcontainers. |
-| `../practica7-pruebas/package-lock.json` | `package-lock.json` | Se completó el lock con las dependencias faltantes para permitir `npm ci`. |
-| `../practica7-pruebas/jest.config.js` | `jest.config.js` | Se configuró `tests/` y la salida de cobertura en `coverage/`. |
-| `../practica7-pruebas/analizar.cjs` y `verificar-mongo.cjs` | Raíz del proyecto | Se conservaron las utilidades; el análisis también recorre `tests/`. |
-| `../Practica 2/Parte 1/api/dockerfile` | `Dockerfile` | Se adaptó la receta al servicio de la práctica 7 y a sus pruebas. |
-
-Las carpetas originales de las prácticas 2 y 7 se conservaron. Esta carpeta es autónoma: no usa rutas hacia esas carpetas al ejecutar el servicio, las pruebas ni el build.
-
-La práctica 7 tenía un pendiente documentado: faltaban `@testcontainers/mongodb` y `testcontainers` en el lock. Aquí se instalaron ambos en la versión `12.2.1`. La suite de integración utiliza MongoDB real en un contenedor temporal. También se habilitó `--experimental-vm-modules` en los scripts de Jest: el driver MongoDB 7.7 carga `os` mediante un import dinámico, y sin esa opción Jest impedía cargarlo y MongoDB rechazaba la conexión. La configuración permite ejecutar el driver real sin alterar las pruebas. Véase la [guía oficial de Jest](https://jestjs.io/docs/ecmascript-modules).
-
-## Preparar y probar en tu computadora
-
-Requisitos: Node.js **22.15 o superior**, npm y Docker Engine activo. La primera instalación requiere Internet. `.nvmrc` selecciona la rama 22 si utilizas nvm. El enunciado usa Node 20 en sus ejemplos, pero las dependencias de tu práctica 7 requieren una versión superior.
-
-Desde `practica8-cicd`:
+Requisitos: Node.js 22.15 o superior, npm y Docker Engine activo. `.nvmrc` selecciona Node 22. La matriz usa Node 22 y 24: las dependencias heredadas requieren una versión superior a Node 20, usado como ejemplo en el enunciado.
 
 ```sh
-git --version
-git config --global user.name
-git config --global user.email
-node --version
-docker --version
-
 npm ci
-npm test
+npm run lint
+npm run audit
+npm run test:cov
+npm start
+```
+
+Hay 7 suites y 72 pruebas: funciones de negocio, API HTTP, contratos y repositorio con MongoDB real. Testcontainers inicia y elimina un `mongo:7` temporal. `--experimental-vm-modules` permite que Jest cargue los imports dinámicos del driver de MongoDB. El servidor HTTP guarda las tareas en memoria; MongoDB se utiliza para probar el repositorio, no como persistencia del servidor.
+
+```sh
+curl -X POST http://localhost:3000/tareas \
+  -H 'Content-Type: application/json' -d '{"titulo":"Revisar CI"}'
+curl http://localhost:3000/tareas
+```
+
+Las suites rápidas se pueden ejecutar con `npm run test:unit` y la integración con `npm run test:int`. CI siempre ejecuta la suite completa; no omite integración para ganar tiempo.
+
+## Qué hace el pipeline
+
+`.github/workflows/ci.yml` responde a `push`, `pull_request` y ejecución manual.
+
+| Job | Trabajo y condición |
+| --- | --- |
+| `pruebas (22)` y `pruebas (24)` | Checkout, Node, caché npm según el lock, `npm ci` y las 72 pruebas con cobertura. `fail-fast: false` permite ver el resultado de ambas versiones. |
+| `calidad` | Ejecuta en paralelo `npm ci`, ESLint sin avisos, comprobación de sintaxis/JSON y auditoría de dependencias. |
+| `imagen` | Espera a toda la matriz y a calidad mediante `needs`. Publica solo desde `main`; en ramas y PR queda omitido. |
+
+La cobertura se conserva con `if: always()`, incluso si falla una prueba. Cada versión de Node tiene un artefacto distinto, `cobertura-<node>-<sha>`, con retención de 7 días. La cobertura se calcula durante la misma ejecución de la suite.
+
+El caché npm conserva descargas, no `node_modules`: se sigue instalando reproduciblemente con `npm ci`. Docker Buildx conserva capas en el caché de Actions; la primera ejecución lo crea y las siguientes pueden aprovecharlo. El tiempo total se mide desde el inicio del primer job hasta el fin del último; no se suman los jobs que se solapan.
+
+## Puertas de calidad
+
+- Cobertura global: 80 % de líneas, sentencias y funciones, y 70 % de ramas. Son mínimos heredados de la práctica de pruebas; la suite actual alcanza 100 % en las cuatro métricas.
+- ESLint: cero errores y cero avisos; también se valida la sintaxis JavaScript y los contratos JSON.
+- Auditoría: bloquea severidad `high` y `critical`. La demostración usa `lodash@4.17.20`, de severidad alta; el umbral `critical` del ejemplo no bastaría para ese caso.
+
+No se impone ausencia absoluta de avisos moderados: el árbol de herramientas de pruebas tiene avisos transitivos que deben revisarse, y aplicar `npm audit fix --force` sin analizar cambios incompatibles no garantiza una corrección adecuada. Los avisos siguen visibles en el registro; no se silencia la auditoría ni se ignora su código de salida.
+
+## Imagen y trazabilidad
+
+```sh
 docker build -t tareas:local .
-```
-
-`npm ci` instala lo fijado por el lock y falla si no coincide con el manifiesto. `npm test` ejecuta las siete suites, incluida integración con MongoDB. Testcontainers inicia y elimina el MongoDB temporal; no hay que iniciar los contenedores de las prácticas anteriores.
-
-Comandos de consulta:
-
-```sh
-ls -la
-ls -la src tests
-cat Dockerfile
-cat .github/workflows/ci.yml
-npm run test:unit
-npm run test:int
-```
-
-El nombre heredado `test:unit` incluye las pruebas rápidas unitarias, HTTP y contratos; excluye únicamente la integración con MongoDB. `npm run lint` conserva la comprobación de sintaxis de la práctica 7; no es ESLint.
-
-## Qué hay dentro de tu imagen Docker
-
-`docker build -t tareas:local .` crea una imagen local llamada `tareas:local`. El punto final indica que esta carpeta es el contexto de construcción.
-
-El `Dockerfile` hace lo siguiente:
-
-1. `FROM node:22-alpine` aporta Linux Alpine, Node.js y npm compatibles con el proyecto.
-2. `WORKDIR /app` establece el directorio de trabajo dentro de la imagen.
-3. `COPY package.json package-lock.json ./` incorpora los manifiestos.
-4. `RUN npm ci --no-audit --no-fund` instala las dependencias fijadas, incluidas las de pruebas.
-5. Los siguientes `COPY` incorporan `src/`, `tests/`, Jest y las utilidades del proyecto.
-6. `USER node` ejecuta el proceso sin privilegios de administrador.
-7. `EXPOSE 3000` documenta el puerto interno; `-p` lo publica al arrancar el contenedor.
-8. `CMD ["npm", "start"]` inicia `node src/server.js`.
-
-Es una **imagen de laboratorio con las pruebas incluidas**. Dentro están `/app/src`, `/app/tests`, `/app/node_modules` y los archivos de configuración. `.dockerignore` excluye dependencias locales, credenciales, metadatos Git y documentos del contexto. No se copió el contenido de todo tu equipo ni se depende de un volumen de las prácticas anteriores.
-
-### Arrancar la API y entrar al contenedor
-
-Se usa el puerto **3008** de tu computadora porque el 3000 ya estaba ocupado:
-
-```sh
-docker run -d --name practica8-api -p 127.0.0.1:3008:3000 tareas:local
-docker ps --filter name=practica8-api
-docker logs practica8-api
+docker pull ghcr.io/miguelangel7521/com600-practico8:latest
+docker run --rm -p 127.0.0.1:3008:3000 ghcr.io/miguelangel7521/com600-practico8:latest
 curl http://localhost:3008/tareas
 ```
 
-Si el contenedor `practica8-api` ya existe y está detenido, usa `docker start practica8-api`. Si está funcionando, entra directamente:
+Cada publicación incluye el SHA completo, la versión de `package.json`, `<version>-ci.<numero-de-corrida>` y `latest`. Para reproducir una entrega se usa el SHA o el digest; `latest` y la etiqueta de versión pueden avanzar con nuevas publicaciones. Las etiquetas OCI `source` y `revision` enlazan repositorio y commit. El nombre de GHCR se convierte a minúsculas.
 
-```sh
-docker exec -it practica8-api sh
-```
+Solo el job de imagen tiene `packages: write` y se autentica con `secrets.GITHUB_TOKEN`, generado por GitHub. El código no contiene credenciales. Ningún PR publica una imagen.
 
-Ya dentro, ejecuta:
-
-```sh
-pwd
-ls -la
-ls -la src tests
-cat package.json
-exit
-```
-
-`pwd` muestra `/app`. `exit` cierra esa terminal; el servidor sigue funcionando. Para detenerlo: `docker stop practica8-api`. Para iniciarlo otra vez: `docker start practica8-api`.
-
-También puedes inspeccionar la imagen sin dejar un servidor funcionando:
-
-```sh
-docker run --rm -it tareas:local sh
-```
-
-Para ejecutar las 64 pruebas rápidas dentro de un contenedor temporal:
+La imagen de laboratorio conserva las pruebas y sus dependencias, usa `node:22-alpine` y arranca como el usuario `node`. Las 64 pruebas rápidas se pueden ejecutar dentro de la imagen:
 
 ```sh
 docker run --rm tareas:local npm run test:unit
 ```
 
-La suite completa se ejecuta con `npm test` **en tu computadora**, donde tiene acceso a Docker. El contenedor de la API no tiene conexión al daemon Docker del anfitrión; tener Testcontainers instalado en la imagen no le da ese acceso. Por eso `npm test` dentro de ese contenedor necesita configuración adicional, que no forma parte de este laboratorio.
+La suite completa se ejecuta en el equipo o runner con acceso al daemon Docker; el contenedor HTTP no necesita ese acceso. Los documentos, credenciales locales, cobertura y `node_modules` del anfitrión se excluyen del contexto Docker.
 
-La API conserva tareas en memoria: reiniciar el contenedor vacía la lista. MongoDB se usa en las pruebas de `repositorio.js`; el servidor HTTP no está conectado a esa base.
-
-## Cómo entrar a las carpetas originales
-
-Desde `practica8-cicd`, abre otra terminal para consultar:
+## Contribuir con main protegida
 
 ```sh
-# Dockerfile original de la práctica 2
-cd "../Practica 2/Parte 1/api"
-ls -la
-cat dockerfile
+git switch main
+git pull --ff-only origin main
+git switch -c mejora/descripcion-del-cambio
+# Editar y comprobar: npm run lint, npm run audit, npm run test:cov
+git add <archivos-del-cambio>
+git commit -m "Describe el cambio"
+git push -u origin mejora/descripcion-del-cambio
 ```
 
-O, nuevamente desde `practica8-cicd`:
+Abre un pull request hacia `main`. Para fusionarlo deben pasar `pruebas (22)`, `pruebas (24)` y `calidad`, la rama debe estar actualizada y las conversaciones deben estar resueltas. Las reglas también se aplican al administrador. No se permiten force pushes ni eliminación de `main`; un push directo es rechazado. No se exige aprobación de otra cuenta en este repositorio individual, pero sí pasar por PR. Si cambian los nombres de los jobs, deben actualizarse también los checks de protección.
 
-```sh
-# Pruebas originales de la práctica 7
-cd ../practica7-pruebas
-ls -la src/test
-```
+## Demostraciones realizadas
 
-Las pruebas preparadas para este laboratorio están en **`practica8-cicd/tests/`**. Ejecuta aquí los comandos de validación; las correcciones de dependencias se hicieron en esta copia.
-
-## Qué hace el job `verificar`
-
-El archivo `.github/workflows/ci.yml` se dispara con `push` y `pull_request`.
-
-| Elemento | Función |
+| Laboratorio | Corridas o recurso |
 | --- | --- |
-| `runs-on: ubuntu-latest` | GitHub asigna una máquina Ubuntu nueva para el job. |
-| `actions/checkout@v4` | Descarga el código del commit dentro del runner. |
-| `echo` | Muestra el commit, la rama y el directorio. |
-| `ls -la` | Lista los archivos del repositorio, incluidos los ocultos. |
-| `ls -la src tests` | Permite comprobar que también llegaron el código y las pruebas. |
-| `GITHUB_STEP_SUMMARY` | Guarda el listado como un resumen visible en la corrida. |
-| `permissions: contents: read` | Permite leer el repositorio con el token del workflow. |
+| Primer workflow con listado del runner | [Verde](https://github.com/MiguelAngel7521/com600-practico8/actions/runs/38840469855) |
+| Suite y cobertura sin caché | [Verde](https://github.com/MiguelAngel7521/com600-practico8/actions/runs/38840566029) |
+| Expectativa incorrecta y corrección en la misma rama | [Rojo](https://github.com/MiguelAngel7521/com600-practico8/actions/runs/38841305325) · [Verde](https://github.com/MiguelAngel7521/com600-practico8/actions/runs/38841454932) |
+| Dependencia vulnerable y retirada | [Rojo](https://github.com/MiguelAngel7521/com600-practico8/actions/runs/38841402464) · [Verde](https://github.com/MiguelAngel7521/com600-practico8/actions/runs/38841587237) |
+| Publicación tras pruebas y calidad | [Verde](https://github.com/MiguelAngel7521/com600-practico8/actions/runs/38841461861) |
+| PR bloqueado, corregido y fusionado | [Pull request #1](https://github.com/MiguelAngel7521/com600-practico8/pull/1) |
 
-Hay tres lugares distintos: tu carpeta local, el contenedor creado desde `tareas:local` y la máquina temporal de GitHub. En este laboratorio GitHub obtiene los archivos mediante `checkout`; el job **no utiliza tu imagen Docker local**. La imagen se construye localmente para cumplir el Laboratorio 0. Su publicación en un registro se realiza en un laboratorio posterior.
+Medición del caché npm: el paso de instalación bajó de 22 s en la ejecución sin caché a 12 s con un acierto de caché, una reducción observada de 45,45 %. Ambas corridas usan el mismo lock; esta comparación puntual no garantiza tiempos idénticos en otros runners.
 
-Para que GitHub vea una modificación hay que confirmarla y subirla:
+La Hoja de Evidencias, sus capturas y los registros de soporte se conservan localmente en esta carpeta. La comparación final del Laboratorio 7 está en la hoja, con enlaces a las corridas usadas.
 
-```sh
-git add .github/workflows/ci.yml Dockerfile .dockerignore .gitignore .nvmrc package.json package-lock.json jest.config.js analizar.cjs verificar-mongo.cjs src tests README.md evidencias/RESPUESTAS.md
-git commit -m "Parte 1: completar laboratorios 0 y 1"
-git push origin main
-```
-
-Estos comandos son para cambios nuevos. Si `git status` indica que no hay cambios, ya están confirmados. No necesitas crear otro repositorio ni volver a ejecutar `git init`.
-
-## Respuestas y evidencias
-
-En [evidencias/RESPUESTAS.md](evidencias/RESPUESTAS.md) están respondidas **solo las preguntas 1 y 2**, junto con las indicaciones de las capturas 1 a 4. Los registros de validación local quedan en `evidencias/*.log` y no se versionan.
-
-El PDF del enunciado dice que las respuestas y capturas se entregan en la **Hoja de Evidencias**. Como esa plantilla de la práctica 8 no estaba en la carpeta, las respuestas se dejan en un documento independiente para trasladarlas a ella.
-
-Referencias: [runners alojados por GitHub](https://docs.github.com/en/actions/concepts/runners/github-hosted-runners), [consulta de los logs](https://docs.github.com/en/actions/how-tos/monitor-workflows/use-workflow-run-logs) y [contexto de construcción Docker](https://docs.docker.com/build/concepts/context/).
+Referencias: [caché de setup-node](https://github.com/actions/setup-node), [artefactos](https://github.com/actions/upload-artifact), [Buildx](https://github.com/docker/build-push-action) y [configuración de ESLint](https://eslint.org/docs/latest/use/configure/configuration-files).
