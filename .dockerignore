@@ -1,0 +1,15 @@
+node_modules/
+coverage/
+.git/
+.github/
+.agents/
+.codex/
+.aws/
+.env
+.env.*
+evidencias/
+entregables/
+*.pdf
+*.docx
+*.log
+README.md

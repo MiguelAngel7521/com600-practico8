@@ -4,16 +4,30 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   verificar:
     runs-on: ubuntu-latest
     steps:
-      - name: Traer el codigo del repositorio
+      - name: Traer el código del repositorio
         uses: actions/checkout@v4
 
-      - name: Comprobar que el mecanismo funciona
+      - name: Comprobar que el mecanismo funciona (ls -la)
         run: |
           echo "Commit: $GITHUB_SHA"
           echo "Rama:   $GITHUB_REF_NAME"
-          ls -la
+          echo "Directorio del runner: $PWD"
+          ls -la | tee /tmp/listado-repositorio.txt
+          echo "Código y pruebas traídos desde el repositorio:"
+          ls -la src tests | tee /tmp/listado-codigo-pruebas.txt
+          {
+            echo '### Laboratorio 1 — Archivos dentro del runner'
+            echo "Commit: $GITHUB_SHA"
+            echo "Rama: $GITHUB_REF_NAME"
+            echo '```text'
+            cat /tmp/listado-repositorio.txt /tmp/listado-codigo-pruebas.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
