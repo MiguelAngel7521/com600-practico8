@@ -7,3 +7,9 @@ coverage/
 .codex/
 .aws/
 *.log
+
+# Documentos y registros locales de la entrega
+/evidencias/
+/entregables/
+*.docx
+*.pdf

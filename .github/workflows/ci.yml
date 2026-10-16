@@ -10,14 +10,19 @@ permissions:
 
 jobs:
   pruebas:
+    name: pruebas (${{ matrix.node }})
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - name: Preparar Node.js 22 con caché
+      - name: Preparar Node.js ${{ matrix.node }} con caché
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: ${{ matrix.node }}
           cache: npm
           cache-dependency-path: package-lock.json
       - name: Instalar dependencias
@@ -26,9 +31,9 @@ jobs:
         run: npm run test:cov
       - name: Publicar el reporte como artefacto
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: cobertura-22-${{ github.sha }}
+          name: cobertura-${{ matrix.node }}-${{ github.sha }}
           path: coverage/
           retention-days: 7
           if-no-files-found: warn
@@ -88,6 +93,8 @@ jobs:
         with:
           context: .
           push: true
+          cache-from: type=gha,scope=practica8-api
+          cache-to: type=gha,mode=max,scope=practica8-api
           tags: ${{ steps.meta.outputs.tags }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
