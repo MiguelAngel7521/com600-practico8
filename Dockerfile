@@ -10,7 +10,7 @@ RUN npm ci --no-audit --no-fund
 
 COPY src ./src
 COPY tests ./tests
-COPY jest.config.js analizar.cjs verificar-mongo.cjs ./
+COPY jest.config.js eslint.config.cjs analizar.cjs verificar-mongo.cjs ./
 
 USER node
 EXPOSE 3000
