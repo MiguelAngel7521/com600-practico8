@@ -14,11 +14,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - name: Preparar Node.js 22 sin caché
+      - name: Preparar Node.js 22 con caché
         uses: actions/setup-node@v6
         with:
           node-version: '22'
-          package-manager-cache: false
+          cache: npm
+          cache-dependency-path: package-lock.json
       - name: Instalar dependencias
         run: npm ci --no-audit --no-fund
       - name: Ejecutar la suite de la Práctica 7 con cobertura
@@ -31,3 +32,20 @@ jobs:
           path: coverage/
           retention-days: 7
           if-no-files-found: warn
+
+  calidad:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Instalar dependencias
+        run: npm ci --no-audit --no-fund
+      - name: Análisis estático sin avisos
+        run: npm run lint
+      - name: Escaneo de dependencias (bloquea high y critical)
+        run: npm run audit
