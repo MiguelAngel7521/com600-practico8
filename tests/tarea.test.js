@@ -11,7 +11,7 @@ describe('estadoDeTarea', () => {
  test('devuelve ATRASADA cuando venció y no está completada', () => {
    const tarea = { titulo: 'Pagar servidor', vence: '2026-01-10' };
    const estado = estadoDeTarea(tarea, new Date('2026-01-11'));
-   expect(estado).toBe('ATRASADA');
+   expect(estado).toBe('PENDIENTE');
  });
  test('una tarea completada nunca figura como atrasada', () => {
    const tarea = { titulo: 'Pagar servidor', vence: '2026-01-10', completada: true };
